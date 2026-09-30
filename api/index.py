@@ -7,34 +7,25 @@ import requests
 from datetime import datetime
 from flask import Flask, request, Response
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 app = Flask(__name__)
 
 
 # =========================================================
-#  🔐  KEY LOADER (no provider name)
+#  🔐  LOAD KEYS
 # =========================================================
 
 def _ld(name):
-    """Env var theke comma-separated base64 keys load + decode."""
     raw = os.environ.get(name, "").strip()
     if not raw:
         return []
-    out = []
-    for s in raw.split(","):
-        s = s.strip()
-        if not s:
-            continue
-        try:
-            v = base64.b64decode(s).decode("utf-8").strip()
-            if v:
-                out.append(v)
-        except Exception:
-            continue
-    return out
+    return [k.strip() for k in raw.split(",") if k.strip()]
 
 
 _l1 = _ld("A1")
@@ -128,7 +119,7 @@ def _nm(t):
 
 
 # =========================================================
-#  🚀  PROVIDER 1 CALL
+#  🚀  PROVIDER 1
 # =========================================================
 
 def _c1(k, model, prompt, b64, mime):
@@ -179,7 +170,7 @@ def _s1(b64, mime, prompt=None):
 
 
 # =========================================================
-#  🌟  PROVIDER 2 CALL
+#  🌟  PROVIDER 2
 # =========================================================
 
 def _c2(k, model, prompt, b64, mime):
@@ -479,7 +470,7 @@ def proxy(subpath):
 
 
 # =========================================================
-#  🏁  MAIN
+#  🏁  VERCEL HANDLER
 # =========================================================
 
 if __name__ == "__main__":
