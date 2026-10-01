@@ -1,3 +1,657 @@
+from flask import Flask, request, jsonify, Response
+import json
+import os
+import re
+import time
 import base64
-# Nicher "" er bhetore apnar encoded string-ti boshan
-exec(base64.b64decode("aW1wb3J0IHJlCmltcG9ydCBvcwppbXBvcnQgdGltZQppbXBvcnQgdXVpZAppbXBvcnQgYmFzZTY0CmltcG9ydCBtaW1ldHlwZXMKaW1wb3J0IHJlcXVlc3RzCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCmZyb20gZmxhc2sgaW1wb3J0IEZsYXNrLCByZXF1ZXN0LCBSZXNwb25zZQpmcm9tIGJzNCBpbXBvcnQgQmVhdXRpZnVsU291cAoKYXBwID0gRmxhc2soX19uYW1lX18pCgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDimpnvuI8gIEdST1EgQ09ORklHCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpHUk9RX0FQSV9LRVlTID0gWwogICAgImdza19WblB0Z0VPTjhjSjdXanFWSlRKa1dHZHliM0ZZdThYeHFVVktVSFdoMmxrbDVtbEpncjF3IiwKICAgICJnc2tfeDJZMm1oOTh3bHhuM2dDWVFLN2hXR2R5YjNGWXBoVjROYnNjS0ZoRXJJOUg3dWtpMlM4aiIsCiAgICAiZ3NrX0hRSnVXV1hzd2wzODRKNmdySXNiV0dkeWIzRllqUWVCemlxWDVDNUhVYXpqV1VlMURDT2siLApdCgpHUk9RX01PREVMID0gInF3ZW4vcXdlbjMuOC0yN2IiCkdST1FfVVJMID0gImh0dHBzOi8vYXBpLmdyb3EuY29tL29wZW5haS92MS9jaGF0L2NvbXBsZXRpb25zIgpHUk9RX1RJTUVPVVQgPSA2MApHUk9RX1JFVFJZX0RFTEFZID0gMQoKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KIyAg8J+MnyAgR0VNSU5JIENPTkZJRyAodG9tYXIgd29ya2luZyBjb2RlIHRoZWtlKQojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKR0VNSU5JX0FQSV9LRVlTID0gWwogICAgIkFRLkFiOFJONkxkbEJBY0NKZmYyV3U5cXkzakk3Q2tzSFo0eUZCNUdLZ0F3QTFQa2xPUjBnIiwKICAgICJBUS5BYjhSTjZLT1BNUWZHMnZ3eFBaeThIU3Y0SkxfUEEyUnl1WFhyYXEyem92NGI3SmEzZyIsCiAgICAiQVEuQWI4Uk42SnJrbGw2OHBnR1R6SEY1anJVZlVteFJvNm5QeW8tSFVuTVRWdEk5cW40akEiLAogICAgIkFRLkFiOFJONkpRSnlOZ0pJWVMtQ0wydTVyS04yc2ZvdWFrNWRmNHJmNE9zX1JJeUxTVE5RIiwKXQoKR0VNSU5JX01PREVMUyA9IFsKICAgICJnZW1pbmktZmxhc2gtbGl0ZS1sYXRlc3QiLAogICAgImdlbWluaS1mbGFzaC1sYXRlc3QiLApdCgpHRU1JTklfVElNRU9VVCA9IDIwCgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDwn5SEICBDT01NT04KIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCk1BWF9DQVBUQ0hBX0FUVEVNUFRTID0gNQoKUFJPTVBUID0gKAogICAgIlJlYWQgdGhlIG1hdGggZXhwcmVzc2lvbiBmcm9tIHRoaXMgaW1hZ2UuICIKICAgICJTb2x2ZSBpdC4gIgogICAgIlJlcGx5IHdpdGggT05MWSB0aGUgZmluYWwgYW5zd2VyIGFzIGEgbnVtYmVyLiAiCiAgICAiTm8gZXhwbGFuYXRpb24uIE5vIHRleHQuIE5vIGV4dHJhIHdvcmRzLiBKdXN0IHRoZSBudW1iZXIuIgopCgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDwn4yQICBCRFJJUyBDT05GSUcKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCkJBU0UgPSAiaHR0cHM6Ly9ldmVyaWZ5LmJkcmlzLmdvdi5iZCIKCkhFQURFUlMgPSB7CiAgICAiaG9zdCI6ICJldmVyaWZ5LmJkcmlzLmdvdi5iZCIsCiAgICAidXNlci1hZ2VudCI6ICgKICAgICAgICAiTW96aWxsYS81LjAgKExpbnV4OyBBbmRyb2lkIDk7IGl0ZWwgTDYwMDUgQnVpbGQvUFBSMS4xODA2MTAuMDExKSAiCiAgICAgICAgIkFwcGxlV2ViS2l0LzUzNy4zNiAoS0hUTUwsIGxpa2UgR2Vja28pIFF0bGovNC4wICIKICAgICAgICAiQ2hyb21lLzEwMS4wLjQ5NTEuNjEgTW9iaWxlIFNhZmFyaS81MzcuMzYiCiAgICApLAogICAgImFjY2VwdCI6ICgKICAgICAgICAidGV4dC9odG1sLGFwcGxpY2F0aW9uL3hodG1sK3htbCxhcHBsaWNhdGlvbi94bWw7cT0wLjksIgogICAgICAgICJpbWFnZS9hdmlmLGltYWdlL3dlYnAsaW1hZ2UvYXBuZywqLyo7cT0wLjgsIgogICAgICAgICJhcHBsaWNhdGlvbi9zaWduZWQtZXhjaGFuZ2U7dj1iMztxPTAuOSIKICAgICksCiAgICAieC1yZXF1ZXN0ZWQtd2l0aCI6ICJjb20ubXljb21wYW55LmFwcC5zb3VsYnJvd3NlciIsCiAgICAic2VjLWZldGNoLXNpdGUiOiAic2FtZS1vcmlnaW4iLAogICAgInNlYy1mZXRjaC1tb2RlIjogIm5hdmlnYXRlIiwKICAgICJzZWMtZmV0Y2gtdXNlciI6ICI/MSIsCiAgICAic2VjLWZldGNoLWRlc3QiOiAiZG9jdW1lbnQiLAogICAgInJlZmVyZXIiOiAiaHR0cHM6Ly9ldmVyaWZ5LmJkcmlzLmdvdi5iZC8iLAogICAgImFjY2VwdC1lbmNvZGluZyI6ICJnemlwLCBkZWZsYXRlIiwKICAgICJhY2NlcHQtbGFuZ3VhZ2UiOiAiZW4tVVMsZW47cT0wLjkiLAp9CgpQT1NUX0hFQURFUlMgPSB7CiAgICAiaG9zdCI6ICJldmVyaWZ5LmJkcmlzLmdvdi5iZCIsCiAgICAib3JpZ2luIjogImh0dHBzOi8vZXZlcmlmeS5iZHJpcy5nb3YuYmQiLAogICAgInJlZmVyZXIiOiAiaHR0cHM6Ly9ldmVyaWZ5LmJkcmlzLmdvdi5iZC8iLAogICAgImFjY2VwdCI6ICgKICAgICAgICAidGV4dC9odG1sLGFwcGxpY2F0aW9uL3hodG1sK3htbCxhcHBsaWNhdGlvbi94bWw7cT0wLjksIgogICAgICAgICJpbWFnZS9hdmlmLGltYWdlL3dlYnAsaW1hZ2UvYXBuZywqLyo7cT0wLjgsIgogICAgICAgICJhcHBsaWNhdGlvbi9zaWduZWQtZXhjaGFuZ2U7dj1iMztxPTAuOSIKICAgICksCiAgICAieC1yZXF1ZXN0ZWQtd2l0aCI6ICJjb20ubXljb21wYW55LmFwcC5zb3VsYnJvd3NlciIsCiAgICAic2VjLWZldGNoLXNpdGUiOiAic2FtZS1vcmlnaW4iLAogICAgInNlYy1mZXRjaC1tb2RlIjogIm5hdmlnYXRlIiwKICAgICJzZWMtZmV0Y2gtdXNlciI6ICI/MSIsCiAgICAic2VjLWZldGNoLWRlc3QiOiAiZG9jdW1lbnQiLAogICAgImFjY2VwdC1lbmNvZGluZyI6ICJnemlwLCBkZWZsYXRlIiwKICAgICJhY2NlcHQtbGFuZ3VhZ2UiOiAiZW4tVVMsZW47cT0wLjkiLAp9CgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDwn5SnICBIRUxQRVJTCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpkZWYgZ3Vlc3NfbWltZShwYXRoX29yX2N0KToKICAgIHMgPSAocGF0aF9vcl9jdCBvciAiIikubG93ZXIoKQogICAgaWYgInBuZyIgaW4gczogcmV0dXJuICJpbWFnZS9wbmciCiAgICBpZiAianBlZyIgaW4gcyBvciAianBnIiBpbiBzOiByZXR1cm4gImltYWdlL2pwZWciCiAgICBpZiAid2VicCIgaW4gczogcmV0dXJuICJpbWFnZS93ZWJwIgogICAgaWYgImdpZiIgaW4gczogcmV0dXJuICJpbWFnZS9naWYiCiAgICBpZiAiYm1wIiBpbiBzOiByZXR1cm4gImltYWdlL2JtcCIKICAgIHJldHVybiAiaW1hZ2UvanBlZyIKCgpkZWYgaXNfcGxhY2Vob2xkZXIoa2V5LCBtYXJrZXJzPSgia2V5Ml9oZXJlIiwgImtleTNfaGVyZSIsICJrZXk0X2hlcmUiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgInlvdXJfa2V5IiwgInh4eHgiLCAiWU9VUl9TRUNPTkQiLAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIllPVVJfVEhJUkQiKSk6CiAgICBpZiBub3Qga2V5OgogICAgICAgIHJldHVybiBUcnVlCiAgICByZXR1cm4gYW55KG0ubG93ZXIoKSBpbiBrZXkubG93ZXIoKSBmb3IgbSBpbiBtYXJrZXJzKQoKCmRlZiBleHRyYWN0X251bWJlcih0ZXh0KToKICAgICIiIk1hdGggYW5zd2VyIHRoZWtlIG51bWJlciBiZXIga29yZS4iIiIKICAgIGlmIG5vdCB0ZXh0OgogICAgICAgIHJldHVybiBOb25lCiAgICBtID0gcmUuc2VhcmNoKHIiLT9cZCsoPzpcLlxkKyk/IiwgdGV4dCkKICAgIHJldHVybiBtLmdyb3VwKDApIGlmIG0gZWxzZSBOb25lCgoKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KIyAg8J+agCAgR1JPUSBDQUxMCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpkZWYgY2FsbF9ncm9xKGFwaV9rZXksIG1vZGVsLCBwcm9tcHQsIGI2NF9pbWFnZSwgbWltZSk6CiAgICBoZWFkZXJzID0gewogICAgICAgICJBdXRob3JpemF0aW9uIjogZiJCZWFyZXIge2FwaV9rZXl9IiwKICAgICAgICAiQ29udGVudC1UeXBlIjogImFwcGxpY2F0aW9uL2pzb24iLAogICAgfQogICAgcGF5bG9hZCA9IHsKICAgICAgICAibW9kZWwiOiBtb2RlbCwKICAgICAgICAibWVzc2FnZXMiOiBbewogICAgICAgICAgICAicm9sZSI6ICJ1c2VyIiwKICAgICAgICAgICAgImNvbnRlbnQiOiBbCiAgICAgICAgICAgICAgICB7InR5cGUiOiAidGV4dCIsICJ0ZXh0IjogcHJvbXB0fSwKICAgICAgICAgICAgICAgIHsidHlwZSI6ICJpbWFnZV91cmwiLAogICAgICAgICAgICAgICAgICJpbWFnZV91cmwiOiB7InVybCI6IGYiZGF0YTp7bWltZX07YmFzZTY0LHtiNjRfaW1hZ2V9In19LAogICAgICAgICAgICBdLAogICAgICAgIH1dLAogICAgICAgICJ0ZW1wZXJhdHVyZSI6IDAsCiAgICAgICAgIm1heF9jb21wbGV0aW9uX3Rva2VucyI6IDUwLAogICAgfQogICAgciA9IHJlcXVlc3RzLnBvc3QoR1JPUV9VUkwsIGhlYWRlcnM9aGVhZGVycywganNvbj1wYXlsb2FkLCB0aW1lb3V0PUdST1FfVElNRU9VVCkKICAgIGlmIHIuc3RhdHVzX2NvZGUgIT0gMjAwOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmIkdyb3EgSFRUUCB7ci5zdGF0dXNfY29kZX06IHtyLnRleHRbOjIwMF19IikKICAgIGRhdGEgPSByLmpzb24oKQogICAgdHJ5OgogICAgICAgIHJldHVybiBkYXRhWyJjaG9pY2VzIl1bMF1bIm1lc3NhZ2UiXVsiY29udGVudCJdLnN0cmlwKCkKICAgIGV4Y2VwdCAoS2V5RXJyb3IsIEluZGV4RXJyb3IpOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmIkdyb3EgYmFkIHJlc3BvbnNlOiB7ZGF0YX0iKQoKCmRlZiBzb2x2ZV9ncm9xKGI2NF9pbWFnZSwgbWltZSwgcHJvbXB0PVBST01QVCk6CiAgICB2YWxpZF9rZXlzID0gW2sgZm9yIGsgaW4gR1JPUV9BUElfS0VZUyBpZiBub3QgaXNfcGxhY2Vob2xkZXIoayldCiAgICBpZiBub3QgdmFsaWRfa2V5czoKICAgICAgICByZXR1cm4gTm9uZQogICAgbGFzdF9lcnJvciA9IE5vbmUKICAgIGZvciBpZHgsIGtleSBpbiBlbnVtZXJhdGUodmFsaWRfa2V5cywgMSk6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBwcmludChmIiAgIPCflIEgR3JvcSBbe2lkeH0ve2xlbih2YWxpZF9rZXlzKX1dIG1vZGVsPXtHUk9RX01PREVMfSBrZXk9Li4ue2tleVstNjpdfSIpCiAgICAgICAgICAgIHJhdyA9IGNhbGxfZ3JvcShrZXksIEdST1FfTU9ERUwsIHByb21wdCwgYjY0X2ltYWdlLCBtaW1lKQogICAgICAgICAgICBudW0gPSBleHRyYWN0X251bWJlcihyYXcpCiAgICAgICAgICAgIGlmIG51bToKICAgICAgICAgICAgICAgIHByaW50KGYiICAg4pyFIEdyb3EgYW5zd2VyOiB7bnVtfSIpCiAgICAgICAgICAgICAgICByZXR1cm4gbnVtCiAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmIk5vIG51bWJlciBpbjoge3JhdyFyfSIpCiAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogICAgICAgICAgICBsYXN0X2Vycm9yID0gZQogICAgICAgICAgICBwcmludChmIiAgIOKaoO+4jyAgR3JvcSBrZXkgI3tpZHh9IGZhaWxlZDoge2V9IikKICAgICAgICAgICAgdGltZS5zbGVlcChHUk9RX1JFVFJZX0RFTEFZKQogICAgcHJpbnQoZiIgICDinYwgQWxsIEdyb3Ega2V5cyBmYWlsZWQuIExhc3Q6IHtsYXN0X2Vycm9yfSIpCiAgICByZXR1cm4gTm9uZQoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCfjJ8gIEdFTUlOSSBDQUxMICh0b21hciB3b3JraW5nIGNvZGUtZXIgbW90bykKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmRlZiBjYWxsX2dlbWluaShhcGlfa2V5LCBtb2RlbCwgcHJvbXB0LCBiNjRfaW1hZ2UsIG1pbWUpOgogICAgdXJsID0gKAogICAgICAgIGYiaHR0cHM6Ly9nZW5lcmF0aXZlbGFuZ3VhZ2UuZ29vZ2xlYXBpcy5jb20vdjFiZXRhLyIKICAgICAgICBmIm1vZGVscy97bW9kZWx9OmdlbmVyYXRlQ29udGVudCIKICAgICkKICAgIGhlYWRlcnMgPSB7CiAgICAgICAgIkNvbnRlbnQtVHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIiwKICAgICAgICAieC1nb29nLWFwaS1rZXkiOiBhcGlfa2V5LAogICAgfQogICAgcGF5bG9hZCA9IHsKICAgICAgICAiY29udGVudHMiOiBbewogICAgICAgICAgICAicGFydHMiOiBbCiAgICAgICAgICAgICAgICB7InRleHQiOiBwcm9tcHR9LAogICAgICAgICAgICAgICAgeyJpbmxpbmVfZGF0YSI6IHsibWltZV90eXBlIjogbWltZSwgImRhdGEiOiBiNjRfaW1hZ2V9fSwKICAgICAgICAgICAgXQogICAgICAgIH1dLAogICAgICAgICJnZW5lcmF0aW9uQ29uZmlnIjogeyJ0ZW1wZXJhdHVyZSI6IDAuMH0sCiAgICB9CiAgICByID0gcmVxdWVzdHMucG9zdCh1cmwsIGhlYWRlcnM9aGVhZGVycywganNvbj1wYXlsb2FkLCB0aW1lb3V0PUdFTUlOSV9USU1FT1VUKQogICAgaWYgci5zdGF0dXNfY29kZSA9PSAyMDA6CiAgICAgICAgZGF0YSA9IHIuanNvbigpCiAgICAgICAgdHJ5OgogICAgICAgICAgICByZXR1cm4gZGF0YVsiY2FuZGlkYXRlcyJdWzBdWyJjb250ZW50Il1bInBhcnRzIl1bMF1bInRleHQiXQogICAgICAgIGV4Y2VwdCAoS2V5RXJyb3IsIEluZGV4RXJyb3IpOgogICAgICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJHZW1pbmkgYmFkIHJlc3BvbnNlOiB7ZGF0YX0iKQogICAgIyA0MDAvNDAzLzQyOSDihpIgZWkga2V5IGRlYWQsIHBvcmVyIGtleSB0ZQogICAgaWYgci5zdGF0dXNfY29kZSBpbiAoNDAwLCA0MDMsIDQyOSk6CiAgICAgICAgcmFpc2UgUGVybWlzc2lvbkVycm9yKGYiR2VtaW5pIGtleSBkZWFkIChIVFRQIHtyLnN0YXR1c19jb2RlfSk6IHtyLnRleHRbOjE1MF19IikKICAgICMgNTAzIOKGkiBzZXJ2ZXIgYnVzeSwgcmV0cnkgc2FtZSBrZXkgbmV4dCBtb2RlbAogICAgcmFpc2UgUnVudGltZUVycm9yKGYiR2VtaW5pIEhUVFAge3Iuc3RhdHVzX2NvZGV9OiB7ci50ZXh0WzoxNTBdfSIpCgoKZGVmIHNvbHZlX2dlbWluaShiNjRfaW1hZ2UsIG1pbWUsIHByb21wdD1QUk9NUFQpOgogICAgdmFsaWRfa2V5cyA9IFtrIGZvciBrIGluIEdFTUlOSV9BUElfS0VZUyBpZiBub3QgaXNfcGxhY2Vob2xkZXIoayldCiAgICBpZiBub3QgdmFsaWRfa2V5czoKICAgICAgICByZXR1cm4gTm9uZQoKICAgIGZvciBhcGlfa2V5IGluIHZhbGlkX2tleXM6CiAgICAgICAgZm9yIG1vZGVsIGluIEdFTUlOSV9NT0RFTFM6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHByaW50KGYiICAg8J+MnyBHZW1pbmkga2V5PS4uLnthcGlfa2V5Wy02Ol19IG1vZGVsPXttb2RlbH0iKQogICAgICAgICAgICAgICAgcmF3ID0gY2FsbF9nZW1pbmkoYXBpX2tleSwgbW9kZWwsIHByb21wdCwgYjY0X2ltYWdlLCBtaW1lKQogICAgICAgICAgICAgICAgbnVtID0gZXh0cmFjdF9udW1iZXIocmF3KQogICAgICAgICAgICAgICAgaWYgbnVtOgogICAgICAgICAgICAgICAgICAgIHByaW50KGYiICAg4pyFIEdlbWluaSBhbnN3ZXI6IHtudW19IikKICAgICAgICAgICAgICAgICAgICByZXR1cm4gbnVtCiAgICAgICAgICAgICAgICBwcmludChmIiAgIOKaoO+4jyAgTm8gbnVtYmVyIGluIEdlbWluaSByZXNwb25zZToge3JhdyFyfSIpCiAgICAgICAgICAgIGV4Y2VwdCBQZXJtaXNzaW9uRXJyb3IgYXMgZToKICAgICAgICAgICAgICAgIHByaW50KGYiICAg4pqg77iPICB7ZX0iKQogICAgICAgICAgICAgICAgYnJlYWsgICMgZWkga2V5IGRlYWQg4oaSIG5leHQga2V5CiAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZToKICAgICAgICAgICAgICAgIHByaW50KGYiICAg4pqg77iPICBHZW1pbmkgZXJyb3I6IHtlfSIpCiAgICAgICAgICAgICAgICB0aW1lLnNsZWVwKDEpCiAgICAgICAgICAgICAgICBjb250aW51ZQoKICAgIHByaW50KCIgICDinYwgQWxsIEdlbWluaSBrZXlzL21vZGVscyBmYWlsZWQiKQogICAgcmV0dXJuIE5vbmUKCgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDwn6egICBVTklGSUVEIFNPTFZFUiAoR3JvcSDihpIgR2VtaW5pIGZhbGxiYWNrKQojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKZGVmIHNvbHZlKGI2NF9pbWFnZT1Ob25lLCBtaW1lPU5vbmUsIGltYWdlX3BhdGg9Tm9uZSwgaW1hZ2VfYnl0ZXM9Tm9uZSwgcHJvbXB0PVBST01QVCk6CiAgICAiIiIKICAgIFByaW9yaXR5OgogICAgICAxLiBHcm9xICh0b21hciBwcmltYXJ5KQogICAgICAyLiBHZW1pbmkgKGZhbGxiYWNrKQogICAgUmV0dXJuczogc3RyaW5nIG51bWJlciBvciBOb25lCiAgICAiIiIKICAgICMgTm9ybWFsaXplIGlucHV0CiAgICBpZiBpbWFnZV9ieXRlcyBpcyBub3QgTm9uZToKICAgICAgICBiNjRfaW1hZ2UgPSBiYXNlNjQuYjY0ZW5jb2RlKGltYWdlX2J5dGVzKS5kZWNvZGUoInV0Zi04IikKICAgICAgICBpZiBub3QgbWltZToKICAgICAgICAgICAgbWltZSA9ICJpbWFnZS9naWYiCiAgICBlbGlmIGltYWdlX3BhdGggaXMgbm90IE5vbmUgYW5kIGI2NF9pbWFnZSBpcyBOb25lOgogICAgICAgIGlmIG5vdCBvcy5wYXRoLmV4aXN0cyhpbWFnZV9wYXRoKToKICAgICAgICAgICAgcHJpbnQoZiLinYwgRmlsZSBwYW9hIGpheW5pOiB7aW1hZ2VfcGF0aH0iKQogICAgICAgICAgICByZXR1cm4gTm9uZQogICAgICAgIHdpdGggb3BlbihpbWFnZV9wYXRoLCAicmIiKSBhcyBmOgogICAgICAgICAgICBiNjRfaW1hZ2UgPSBiYXNlNjQuYjY0ZW5jb2RlKGYucmVhZCgpKS5kZWNvZGUoInV0Zi04IikKICAgICAgICBpZiBub3QgbWltZToKICAgICAgICAgICAgbXQsIF8gPSBtaW1ldHlwZXMuZ3Vlc3NfdHlwZShpbWFnZV9wYXRoKQogICAgICAgICAgICBtaW1lID0gbXQgb3IgImltYWdlL2pwZWciCgogICAgaWYgbm90IGI2NF9pbWFnZToKICAgICAgICBwcmludCgi4p2MIE5vIGltYWdlIHByb3ZpZGVkIikKICAgICAgICByZXR1cm4gTm9uZQogICAgaWYgbm90IG1pbWU6CiAgICAgICAgbWltZSA9ICJpbWFnZS9qcGVnIgoKICAgICMgMSkgR3JvcQogICAgcHJpbnQoIiAgIOKWtu+4jyAgVHJ5aW5nIEdyb3EuLi4iKQogICAgYW5zID0gc29sdmVfZ3JvcShiNjRfaW1hZ2UsIG1pbWUsIHByb21wdCkKICAgIGlmIGFuczoKICAgICAgICByZXR1cm4gYW5zCgogICAgIyAyKSBHZW1pbmkKICAgIHByaW50KCIgICDilrbvuI8gIEZhbGxpbmcgYmFjayB0byBHZW1pbmkuLi4iKQogICAgYW5zID0gc29sdmVfZ2VtaW5pKGI2NF9pbWFnZSwgbWltZSwgcHJvbXB0KQogICAgaWYgYW5zOgogICAgICAgIHJldHVybiBhbnMKCiAgICBwcmludCgi4p2MIEJvdGggcHJvdmlkZXJzIGZhaWxlZCIpCiAgICByZXR1cm4gTm9uZQoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCfjJAgIEJEUklTIEhFTFBFUlMKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmRlZiBfZXh0cmFjdF9mb3JtKHNvdXApOgogICAgdG9rZW5faW5wdXQgPSBzb3VwLmZpbmQoImlucHV0IiwgeyJuYW1lIjogIl9fUmVxdWVzdFZlcmlmaWNhdGlvblRva2VuIn0pCiAgICBpZiBub3QgdG9rZW5faW5wdXQ6CiAgICAgICAgcmV0dXJuIE5vbmUsIE5vbmUKICAgIHRva2VuID0gdG9rZW5faW5wdXQuZ2V0KCJ2YWx1ZSIpCiAgICBjYXB0Y2hhX2ltZyA9IHNvdXAuZmluZCgiaW1nIiwgc3JjPXJlLmNvbXBpbGUociIvRGVmYXVsdENhcHRjaGEvR2VuZXJhdGVcP3Q9IikpCiAgICBpZiBub3QgY2FwdGNoYV9pbWc6CiAgICAgICAgcmV0dXJuIHRva2VuLCBOb25lCiAgICBtID0gcmUuc2VhcmNoKHIidD0oW14mXSspIiwgY2FwdGNoYV9pbWdbInNyYyJdKQogICAgaWYgbm90IG06CiAgICAgICAgcmV0dXJuIHRva2VuLCBOb25lCiAgICByZXR1cm4gdG9rZW4sIG0uZ3JvdXAoMSkKCgpkZWYgX2ZldGNoX2NhcHRjaGFfaW1hZ2Uoc2Vzc2lvbiwgY2FwdGNoYV9zcmMsIHJlZmVyZXIpOgogICAgY2FwX3VybCA9IEJBU0UgKyBjYXB0Y2hhX3NyYyBpZiBjYXB0Y2hhX3NyYy5zdGFydHN3aXRoKCIvIikgZWxzZSBjYXB0Y2hhX3NyYwogICAgciA9IHNlc3Npb24uZ2V0KAogICAgICAgIGNhcF91cmwsCiAgICAgICAgaGVhZGVycz17CiAgICAgICAgICAgICJhY2NlcHQiOiAiaW1hZ2UvYXZpZixpbWFnZS93ZWJwLGltYWdlL2FwbmcsaW1hZ2Uvc3ZnK3htbCxpbWFnZS8qLCovKjtxPTAuOCIsCiAgICAgICAgICAgICJyZWZlcmVyIjogcmVmZXJlciwKICAgICAgICB9LAogICAgICAgIHRpbWVvdXQ9MzAsCiAgICApCiAgICBpZiByLnN0YXR1c19jb2RlICE9IDIwMDoKICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoZiJDYXB0Y2hhIGZldGNoIEhUVFAge3Iuc3RhdHVzX2NvZGV9IikKICAgIHJldHVybiByLmNvbnRlbnQsIHIuaGVhZGVycy5nZXQoIkNvbnRlbnQtVHlwZSIsICJpbWFnZS9naWYiKQoKCmRlZiBfc3VibWl0X3ZlcmlmaWNhdGlvbihzZXNzaW9uLCB0b2tlbiwgZGJybiwgZG9iLCBjYXB0Y2hhX3QsIGNhcHRjaGFfaW5wdXQpOgogICAgZmlsZXMgPSB7CiAgICAgICAgIl9fUmVxdWVzdFZlcmlmaWNhdGlvblRva2VuIjogKE5vbmUsIHRva2VuKSwKICAgICAgICAiVUJSTiI6IChOb25lLCBkYnJuKSwKICAgICAgICAiQmlydGhEYXRlIjogKE5vbmUsIGRvYiksCiAgICAgICAgIkNhcHRjaGFEZVRleHQiOiAoTm9uZSwgY2FwdGNoYV90KSwKICAgICAgICAiQ2FwdGNoYUlucHV0VGV4dCI6IChOb25lLCBjYXB0Y2hhX2lucHV0KSwKICAgIH0KICAgIHJldHVybiBzZXNzaW9uLnBvc3QoCiAgICAgICAgQkFTRSArICIvVUJSTlZlcmlmaWNhdGlvbi9TZWFyY2giLAogICAgICAgIGZpbGVzPWZpbGVzLAogICAgICAgIGhlYWRlcnM9UE9TVF9IRUFERVJTLAogICAgICAgIHRpbWVvdXQ9MzAsCiAgICApCgoKZGVmIF9pc19jYXB0Y2hhX3dyb25nKGh0bWwpOgogICAgbG93ID0gaHRtbC5sb3dlcigpCiAgICBoYXNfY2FwdGNoYV9pbWcgPSAiL2RlZmF1bHRjYXB0Y2hhL2dlbmVyYXRlIiBpbiBsb3cKICAgIGhhc19lcnJvciA9IGFueSgKICAgICAgICBtIGluIGxvdyBmb3IgbSBpbiBbImNhcHRjaGEiLCAiaW52YWxpZCIsICJpbmNvcnJlY3QiLCAid3JvbmciLCAi4Kat4KeB4KayIiwgIuCmuOCmoOCmv+CmleCmreCmvuCmrOCnhyJdCiAgICApCiAgICByZXR1cm4gaGFzX2NhcHRjaGFfaW1nIGFuZCBoYXNfZXJyb3IKCgojID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojICDwn5SlICBIVE1MIFJFV1JJVEUgKENTUy9pbWFnZSBmaXggdmlhIC9wcm94eSkKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmRlZiBfcmV3cml0ZV9odG1sX2Zvcl9sb2NhbChodG1sKToKICAgIGRlZiByZXBsKG1hdGNoKToKICAgICAgICBhdHRyID0gbWF0Y2guZ3JvdXAoMSkKICAgICAgICBxdW90ZSA9IG1hdGNoLmdyb3VwKDIpCiAgICAgICAgdXJsID0gbWF0Y2guZ3JvdXAoMykKICAgICAgICBpZiB1cmwuc3RhcnRzd2l0aCgiL3Byb3h5LyIpIG9yIHVybC5zdGFydHN3aXRoKCJkYXRhOiIpIG9yIHVybC5zdGFydHN3aXRoKCIjIik6CiAgICAgICAgICAgIHJldHVybiBtYXRjaC5ncm91cCgwKQogICAgICAgIGlmIHVybC5zdGFydHN3aXRoKCJodHRwOi8vIikgb3IgdXJsLnN0YXJ0c3dpdGgoImh0dHBzOi8vIik6CiAgICAgICAgICAgIGlmICJldmVyaWZ5LmJkcmlzLmdvdi5iZCIgaW4gdXJsOgogICAgICAgICAgICAgICAgcmV0dXJuIGYne2F0dHJ9PXtxdW90ZX0vcHJveHl7dXJsLnNwbGl0KCJldmVyaWZ5LmJkcmlzLmdvdi5iZCIsIDEpWzFdfXtxdW90ZX0nCiAgICAgICAgICAgIHJldHVybiBtYXRjaC5ncm91cCgwKQogICAgICAgIGlmIHVybC5zdGFydHN3aXRoKCIvIik6CiAgICAgICAgICAgIHJldHVybiBmJ3thdHRyfT17cXVvdGV9L3Byb3h5e3VybH17cXVvdGV9JwogICAgICAgIGlmIHVybC5zdGFydHN3aXRoKCIuLyIpOgogICAgICAgICAgICByZXR1cm4gZid7YXR0cn09e3F1b3RlfS9wcm94eS97dXJsWzI6XX17cXVvdGV9JwogICAgICAgIHJldHVybiBmJ3thdHRyfT17cXVvdGV9L3Byb3h5L3t1cmx9e3F1b3RlfScKCiAgICBodG1sID0gcmUuc3ViKAogICAgICAgIHInKGhyZWZ8c3JjfGFjdGlvbik9KFsiXCddKShbXiJcJ10rKVwyJywKICAgICAgICByZXBsLCBodG1sLCBmbGFncz1yZS5JR05PUkVDQVNFLAogICAgKQogICAgaHRtbCA9IHJlLnN1YihyJzxiYXNlW14+XSo+JywgJycsIGh0bWwsIGZsYWdzPXJlLklHTk9SRUNBU0UpCiAgICByZXR1cm4gaHRtbAoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCfj6AgIFJPT1QgUk9VVEUKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCkBhcHAucm91dGUoIi8iKQpkZWYgaG9tZSgpOgogICAgaHRtbCA9ICcnJzwhRE9DVFlQRSBodG1sPgo8aHRtbD4KPGhlYWQ+CiAgICA8dGl0bGU+QkRSSVMgZVZlcmlmeSBBdXRvIFNvbHZlcjwvdGl0bGU+CiAgICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCI+CiAgICA8c3R5bGU+CiAgICAgICAgYm9keSB7IGZvbnQtZmFtaWx5OiBBcmlhbCwgc2Fucy1zZXJpZjsgYmFja2dyb3VuZDogI2Y0ZjRmNDsKICAgICAgICAgICAgICAgdGV4dC1hbGlnbjogY2VudGVyOyBwYWRkaW5nOiA0MHB4IDIwcHg7IG1hcmdpbjogMDsgfQogICAgICAgIC5ib3ggeyBiYWNrZ3JvdW5kOiB3aGl0ZTsgcGFkZGluZzogMzBweDsgYm9yZGVyLXJhZGl1czogMTBweDsKICAgICAgICAgICAgICAgZGlzcGxheTogaW5saW5lLWJsb2NrOyBib3gtc2hhZG93OiAwIDRweCAxMnB4IHJnYmEoMCwwLDAsLjEpOwogICAgICAgICAgICAgICBtYXgtd2lkdGg6IDQyMHB4OyB3aWR0aDogMTAwJTsgYm94LXNpemluZzogYm9yZGVyLWJveDsgfQogICAgICAgIGgyIHsgY29sb3I6ICMyMjI7IG1hcmdpbi10b3A6IDA7IH0KICAgICAgICBsYWJlbCB7IGRpc3BsYXk6IGJsb2NrOyB0ZXh0LWFsaWduOiBsZWZ0OyBtYXJnaW46IDEycHggMCA0cHg7CiAgICAgICAgICAgICAgICBmb250LXNpemU6IDE0cHg7IGNvbG9yOiAjNDQ0OyB9CiAgICAgICAgaW5wdXQgeyBwYWRkaW5nOiAxMnB4OyB3aWR0aDogMTAwJTsgYm9yZGVyOiAxcHggc29saWQgI2NjYzsKICAgICAgICAgICAgICAgIGJvcmRlci1yYWRpdXM6IDZweDsgYm94LXNpemluZzogYm9yZGVyLWJveDsgZm9udC1zaXplOiAxNXB4OyB9CiAgICAgICAgYnV0dG9uIHsgbWFyZ2luLXRvcDogMThweDsgcGFkZGluZzogMTJweCAyMHB4OyB3aWR0aDogMTAwJTsKICAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kOiAjMDA3YmZmOyBjb2xvcjogd2hpdGU7IGJvcmRlcjogbm9uZTsKICAgICAgICAgICAgICAgICBib3JkZXItcmFkaXVzOiA2cHg7IGZvbnQtc2l6ZTogMTZweDsgY3Vyc29yOiBwb2ludGVyOyB9CiAgICAgICAgYnV0dG9uOmhvdmVyIHsgYmFja2dyb3VuZDogIzAwNTZiMzsgfQogICAgICAgIC5oaW50IHsgZm9udC1zaXplOiAxMnB4OyBjb2xvcjogIzg4ODsgbWFyZ2luLXRvcDogMTRweDsgfQogICAgPC9zdHlsZT4KPC9oZWFkPgo8Ym9keT4KICAgIDxkaXYgY2xhc3M9ImJveCI+CiAgICAgICAgPGgyPvCfh6fwn4epIEJEUklTIGVWZXJpZnkgQXV0byBTb2x2ZXI8L2gyPgogICAgICAgIDxmb3JtIG1ldGhvZD0iR0VUIiBhY3Rpb249Ii9maW5kIj4KICAgICAgICAgICAgPGxhYmVsPlVCUk4gKEJpcnRoIFJlZ2lzdHJhdGlvbiBOdW1iZXIpPC9sYWJlbD4KICAgICAgICAgICAgPGlucHV0IHR5cGU9InRleHQiIG5hbWU9ImRicm4iIHBsYWNlaG9sZGVyPSJlLmcuIDIwMTg2MTEzMTU0MTE3NjMwIiByZXF1aXJlZD4KCiAgICAgICAgICAgIDxsYWJlbD5EYXRlIG9mIEJpcnRoPC9sYWJlbD4KICAgICAgICAgICAgPGlucHV0IHR5cGU9InRleHQiIG5hbWU9ImRvYiIgcGxhY2Vob2xkZXI9IllZWVktTU0tREQgb3IgREQtTU0tWVlZWSIgcmVxdWlyZWQ+CgogICAgICAgICAgICA8YnV0dG9uIHR5cGU9InN1Ym1pdCI+VmVyaWZ5IChBdXRvIENBUFRDSEEpPC9idXR0b24+CiAgICAgICAgPC9mb3JtPgogICAgICAgIDxwIGNsYXNzPSJoaW50Ij5FeGFtcGxlOiAvZmluZD9kYnJuPTIwMTg2MTEzMTU0MTE3NjMwJmRvYj0yMDE4LTEwLTEyPC9wPgogICAgPC9kaXY+CjwvYm9keT4KPC9odG1sPicnJwogICAgcmV0dXJuIFJlc3BvbnNlKGh0bWwsIG1pbWV0eXBlPSJ0ZXh0L2h0bWwiKQoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCflI0gIEZJTkQgUk9VVEUKIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCkBhcHAucm91dGUoIi9maW5kIikKZGVmIGZpbmQoKToKICAgIGRicm4gPSAoCiAgICAgICAgcmVxdWVzdC5hcmdzLmdldCgiZGJybiIpCiAgICAgICAgb3IgcmVxdWVzdC5hcmdzLmdldCgidWJybiIpCiAgICAgICAgb3IgcmVxdWVzdC5hcmdzLmdldCgicmVnIikKICAgICAgICBvciByZXF1ZXN0LmFyZ3MuZ2V0KCJiaXJ0aF9yZWciKQogICAgICAgIG9yIHJlcXVlc3QuYXJncy5nZXQoImJybiIpCiAgICApCiAgICBkb2IgPSAoCiAgICAgICAgcmVxdWVzdC5hcmdzLmdldCgiZG9iIikKICAgICAgICBvciByZXF1ZXN0LmFyZ3MuZ2V0KCJiaXJ0aGRhdGUiKQogICAgICAgIG9yIHJlcXVlc3QuYXJncy5nZXQoImJpcnRoX2RhdGUiKQogICAgICAgIG9yIHJlcXVlc3QuYXJncy5nZXQoImRhdGUiKQogICAgKQoKICAgIGlmIG5vdCBkYnJuIG9yIG5vdCBkb2I6CiAgICAgICAgbWlzc2luZyA9IFtdCiAgICAgICAgaWYgbm90IGRicm46IG1pc3NpbmcuYXBwZW5kKCJkYnJuIikKICAgICAgICBpZiBub3QgZG9iOiAgbWlzc2luZy5hcHBlbmQoImRvYiIpCiAgICAgICAgcmV0dXJuIFJlc3BvbnNlKGYnJycKICAgICAgICA8aHRtbD48Ym9keSBzdHlsZT0iZm9udC1mYW1pbHk6QXJpYWw7cGFkZGluZzo0MHB4O3RleHQtYWxpZ246Y2VudGVyOyI+CiAgICAgICAgPGgyPuKaoO+4jyBNaXNzaW5nIFBhcmFtZXRlcjogeyIsICIuam9pbihtaXNzaW5nKX08L2gyPgogICAgICAgIDxwPlVzZTogPGNvZGU+L2ZpbmQ/ZGJybj0uLi4mZG9iPVlZWVktTU0tREQ8L2NvZGU+PC9wPgogICAgICAgIDxwPjxhIGhyZWY9Ii8iPuKGkCBCYWNrPC9hPjwvcD4KICAgICAgICA8L2JvZHk+PC9odG1sPicnJywgc3RhdHVzPTQwMCwgbWltZXR5cGU9InRleHQvaHRtbCIpCgogICAgZHQgPSBOb25lCiAgICBmb3IgZm10IGluICgiJVktJW0tJWQiLCAiJWQtJW0tJVkiLCAiJVkvJW0vJWQiLCAiJWQvJW0vJVkiLAogICAgICAgICAgICAgICAgIiVZLiVtLiVkIiwgIiVkLiVtLiVZIik6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBkdCA9IGRhdGV0aW1lLnN0cnB0aW1lKGRvYi5zdHJpcCgpLCBmbXQpCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgZXhjZXB0IFZhbHVlRXJyb3I6CiAgICAgICAgICAgIGNvbnRpbnVlCgogICAgaWYgbm90IGR0OgogICAgICAgIHJldHVybiBSZXNwb25zZShmJycnCiAgICAgICAgPGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsO3BhZGRpbmc6NDBweDt0ZXh0LWFsaWduOmNlbnRlcjsiPgogICAgICAgIDxoMj7imqDvuI8gSW52YWxpZCBET0I6IHtkb2J9PC9oMj4KICAgICAgICA8cD5TdXBwb3J0ZWQ6IFlZWVktTU0tREQsIERELU1NLVlZWVksIFlZWVkvTU0vREQsIEREL01NL1lZWVksIFlZWVkuTU0uREQ8L3A+CiAgICAgICAgPHA+PGEgaHJlZj0iLyI+4oaQIEJhY2s8L2E+PC9wPgogICAgICAgIDwvYm9keT48L2h0bWw+JycnLCBzdGF0dXM9NDAwLCBtaW1ldHlwZT0idGV4dC9odG1sIikKCiAgICBkb2JfaXNvID0gZHQuc3RyZnRpbWUoIiVZLSVtLSVkIikKICAgIGRicm4gPSBkYnJuLnN0cmlwKCkKCiAgICBsYXN0X2Vycm9yID0gTm9uZQoKICAgIGZvciBhdHRlbXB0IGluIHJhbmdlKDEsIE1BWF9DQVBUQ0hBX0FUVEVNUFRTICsgMSk6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBwcmludChmIlxu8J+UgSBbQXR0ZW1wdCB7YXR0ZW1wdH0ve01BWF9DQVBUQ0hBX0FUVEVNUFRTfV0gZGJybj17ZGJybn0gZG9iPXtkb2JfaXNvfSIpCgogICAgICAgICAgICBzID0gcmVxdWVzdHMuU2Vzc2lvbigpCiAgICAgICAgICAgIHMuaGVhZGVycy51cGRhdGUoSEVBREVSUykKCiAgICAgICAgICAgIHIgPSBzLmdldChCQVNFICsgIi8iLCB0aW1lb3V0PTMwKQogICAgICAgICAgICBpZiByLnN0YXR1c19jb2RlICE9IDIwMDoKICAgICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcihmIkhvbWUgcGFnZSBIVFRQIHtyLnN0YXR1c19jb2RlfSIpCgogICAgICAgICAgICBzb3VwID0gQmVhdXRpZnVsU291cChyLnRleHQsICJodG1sLnBhcnNlciIpCiAgICAgICAgICAgIHRva2VuLCBjYXB0Y2hhX3QgPSBfZXh0cmFjdF9mb3JtKHNvdXApCiAgICAgICAgICAgIGlmIG5vdCB0b2tlbiBvciBub3QgY2FwdGNoYV90OgogICAgICAgICAgICAgICAgcmFpc2UgUnVudGltZUVycm9yKCJDb3VsZCBub3QgZXh0cmFjdCB0b2tlbi9jYXB0Y2hhX3QiKQoKICAgICAgICAgICAgY2FwdGNoYV9pbWcgPSBzb3VwLmZpbmQoImltZyIsIHNyYz1yZS5jb21waWxlKHIiL0RlZmF1bHRDYXB0Y2hhL0dlbmVyYXRlXD90PSIpKQogICAgICAgICAgICBpZiBub3QgY2FwdGNoYV9pbWc6CiAgICAgICAgICAgICAgICByYWlzZSBSdW50aW1lRXJyb3IoIkNhcHRjaGEgaW1nIG5vdCBmb3VuZCIpCgogICAgICAgICAgICBjYXBfYnl0ZXMsIGNhcF9jdCA9IF9mZXRjaF9jYXB0Y2hhX2ltYWdlKHMsIGNhcHRjaGFfaW1nWyJzcmMiXSwgQkFTRSArICIvIikKCiAgICAgICAgICAgICMgU29sdmUgKEdyb3Eg4oaSIEdlbWluaSBmYWxsYmFjaykKICAgICAgICAgICAgZ3Vlc3MgPSBzb2x2ZShpbWFnZV9ieXRlcz1jYXBfYnl0ZXMsIG1pbWU9Z3Vlc3NfbWltZShjYXBfY3QpKQogICAgICAgICAgICBpZiBub3QgZ3Vlc3M6CiAgICAgICAgICAgICAgICBwcmludCgiICAg4pqg77iPICBTb2x2ZXIgcmV0dXJuZWQgZW1wdHksIHJldHJ5aW5nLi4uIikKICAgICAgICAgICAgICAgIHRpbWUuc2xlZXAoMSkKICAgICAgICAgICAgICAgIGNvbnRpbnVlCgogICAgICAgICAgICBwcmludChmIiAgIPCfjq8gVXNpbmcgQ0FQVENIQToge2d1ZXNzfSIpCgogICAgICAgICAgICByMiA9IF9zdWJtaXRfdmVyaWZpY2F0aW9uKHMsIHRva2VuLCBkYnJuLCBkb2JfaXNvLCBjYXB0Y2hhX3QsIGd1ZXNzKQogICAgICAgICAgICBodG1sID0gcjIudGV4dAoKICAgICAgICAgICAgaWYgX2lzX2NhcHRjaGFfd3JvbmcoaHRtbCk6CiAgICAgICAgICAgICAgICBwcmludCgiICAg4p2MIENBUFRDSEEgd3JvbmcsIHJldHJ5aW5nIHdpdGggZnJlc2ggb25lLi4uIikKICAgICAgICAgICAgICAgIGxhc3RfZXJyb3IgPSAiQ2FwdGNoYSB3cm9uZyIKICAgICAgICAgICAgICAgIHRpbWUuc2xlZXAoMSkKICAgICAgICAgICAgICAgIGNvbnRpbnVlCgogICAgICAgICAgICBwcmludCgiICAg4pyFIFZlcmlmaWNhdGlvbiBwYWdlIHJlY2VpdmVkIikKICAgICAgICAgICAgaHRtbCA9IF9yZXdyaXRlX2h0bWxfZm9yX2xvY2FsKGh0bWwpCiAgICAgICAgICAgIHJldHVybiBSZXNwb25zZShodG1sLCBtaW1ldHlwZT0idGV4dC9odG1sIikKCiAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogICAgICAgICAgICBsYXN0X2Vycm9yID0gZQogICAgICAgICAgICBwcmludChmIiAgIOKaoO+4jyAgQXR0ZW1wdCB7YXR0ZW1wdH0gZXJyb3I6IHtlfSIpCiAgICAgICAgICAgIHRpbWUuc2xlZXAoMSkKCiAgICByZXR1cm4gUmVzcG9uc2UoZicnJwogICAgPGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsO3BhZGRpbmc6NDBweDt0ZXh0LWFsaWduOmNlbnRlcjsiPgogICAgPGgyPuKdjCBGYWlsZWQgYWZ0ZXIge01BWF9DQVBUQ0hBX0FUVEVNUFRTfSBhdHRlbXB0czwvaDI+CiAgICA8cD5MYXN0IGVycm9yOiB7bGFzdF9lcnJvcn08L3A+CiAgICA8cD5EQlJOOiB7ZGJybn0gfCBET0I6IHtkb2JfaXNvfTwvcD4KICAgIDxwPjxhIGhyZWY9Ii8iPuKGkCBUcnkgYWdhaW48L2E+PC9wPgogICAgPC9ib2R5PjwvaHRtbD4nJycsIHN0YXR1cz01MDAsIG1pbWV0eXBlPSJ0ZXh0L2h0bWwiKQoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCfjJAgIFBST1hZIChDU1MvSlMvaW1hZ2UpCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpAYXBwLnJvdXRlKCIvcHJveHkvIiwgZGVmYXVsdHM9eyJzdWJwYXRoIjogIiJ9KQpAYXBwLnJvdXRlKCIvcHJveHkvPHBhdGg6c3VicGF0aD4iLCBtZXRob2RzPVsiR0VUIiwgIlBPU1QiXSkKZGVmIHByb3h5KHN1YnBhdGgpOgogICAgdGFyZ2V0ID0gQkFTRSArICIvIiArIHN1YnBhdGgKICAgIGlmIHJlcXVlc3QucXVlcnlfc3RyaW5nOgogICAgICAgIHRhcmdldCArPSAiPyIgKyByZXF1ZXN0LnF1ZXJ5X3N0cmluZy5kZWNvZGUoKQoKICAgIGZ3ZF9oZWFkZXJzID0gewogICAgICAgICJ1c2VyLWFnZW50IjogSEVBREVSU1sidXNlci1hZ2VudCJdLAogICAgICAgICJhY2NlcHQiOiByZXF1ZXN0LmhlYWRlcnMuZ2V0KCJhY2NlcHQiLCAiKi8qIiksCiAgICAgICAgImFjY2VwdC1sYW5ndWFnZSI6IEhFQURFUlNbImFjY2VwdC1sYW5ndWFnZSJdLAogICAgICAgICJyZWZlcmVyIjogQkFTRSArICIvIiwKICAgIH0KCiAgICB0cnk6CiAgICAgICAgaWYgcmVxdWVzdC5tZXRob2QgPT0gIlBPU1QiOgogICAgICAgICAgICByID0gcmVxdWVzdHMucG9zdCgKICAgICAgICAgICAgICAgIHRhcmdldCwgZGF0YT1yZXF1ZXN0LmdldF9kYXRhKCksCiAgICAgICAgICAgICAgICBoZWFkZXJzPWZ3ZF9oZWFkZXJzLCB0aW1lb3V0PTMwLCBhbGxvd19yZWRpcmVjdHM9RmFsc2UsCiAgICAgICAgICAgICkKICAgICAgICBlbHNlOgogICAgICAgICAgICByID0gcmVxdWVzdHMuZ2V0KAogICAgICAgICAgICAgICAgdGFyZ2V0LCBoZWFkZXJzPWZ3ZF9oZWFkZXJzLAogICAgICAgICAgICAgICAgdGltZW91dD0zMCwgYWxsb3dfcmVkaXJlY3RzPUZhbHNlLAogICAgICAgICAgICApCiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGU6CiAgICAgICAgcmV0dXJuIGYiUHJveHkgZXJyb3I6IHtlfSIsIDUwMgoKICAgIGlmIHIuc3RhdHVzX2NvZGUgaW4gKDMwMSwgMzAyLCAzMDMsIDMwNywgMzA4KToKICAgICAgICBsb2MgPSByLmhlYWRlcnMuZ2V0KCJMb2NhdGlvbiIsICIiKQogICAgICAgIGlmICJldmVyaWZ5LmJkcmlzLmdvdi5iZCIgaW4gbG9jOgogICAgICAgICAgICBsb2MgPSBsb2MucmVwbGFjZSgiaHR0cHM6Ly9ldmVyaWZ5LmJkcmlzLmdvdi5iZCIsICIvcHJveHkiKQogICAgICAgIHJldHVybiBSZXNwb25zZSgiIiwgc3RhdHVzPXIuc3RhdHVzX2NvZGUsIGhlYWRlcnM9eyJMb2NhdGlvbiI6IGxvY30pCgogICAgY29udGVudF90eXBlID0gci5oZWFkZXJzLmdldCgiQ29udGVudC1UeXBlIiwgImFwcGxpY2F0aW9uL29jdGV0LXN0cmVhbSIpCgogICAgaWYgInRleHQvaHRtbCIgaW4gY29udGVudF90eXBlOgogICAgICAgIGh0bWwgPSBfcmV3cml0ZV9odG1sX2Zvcl9sb2NhbChyLnRleHQpCiAgICAgICAgcmV0dXJuIFJlc3BvbnNlKGh0bWwsIHN0YXR1cz1yLnN0YXR1c19jb2RlLCBtaW1ldHlwZT0idGV4dC9odG1sIikKCiAgICBpZiAidGV4dC9jc3MiIGluIGNvbnRlbnRfdHlwZToKICAgICAgICBjc3MgPSByZS5zdWIoCiAgICAgICAgICAgIHIndXJsXCgoWyJcJ10/KSgvW14pIlwnXSspXDFcKScsCiAgICAgICAgICAgIHIndXJsKFwxL3Byb3h5XDJcMSknLCByLnRleHQsCiAgICAgICAgKQogICAgICAgIHJldHVybiBSZXNwb25zZShjc3MsIHN0YXR1cz1yLnN0YXR1c19jb2RlLCBtaW1ldHlwZT0idGV4dC9jc3MiKQoKICAgIHJldHVybiBSZXNwb25zZShyLmNvbnRlbnQsIHN0YXR1cz1yLnN0YXR1c19jb2RlLCBjb250ZW50X3R5cGU9Y29udGVudF90eXBlKQoKCiMgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiMgIPCfj4EgIE1BSU4KIyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBnayA9IGxlbihbayBmb3IgayBpbiBHUk9RX0FQSV9LRVlTIGlmIG5vdCBpc19wbGFjZWhvbGRlcihrKV0pCiAgICBnbWsgPSBsZW4oW2sgZm9yIGsgaW4gR0VNSU5JX0FQSV9LRVlTIGlmIG5vdCBpc19wbGFjZWhvbGRlcihrKV0pCiAgICBwcmludCgi8J+agCBCRFJJUyBlVmVyaWZ5IEF1dG8tU29sdmVyIHJ1bm5pbmciKQogICAgcHJpbnQoZiIgICBHcm9xIG1vZGVsOiAgIHtHUk9RX01PREVMfSB8IGtleXM6IHtna30iKQogICAgcHJpbnQoZiIgICBHZW1pbmkgbW9kZWxzOiB7R0VNSU5JX01PREVMU30gfCBrZXlzOiB7Z21rfSIpCiAgICBwcmludChmIiAgIE1heCBhdHRlbXB0czoge01BWF9DQVBUQ0hBX0FUVEVNUFRTfSIpCiAgICBwcmludChmIiAgIFJvdXRlczogLyAgL2ZpbmQ/ZGJybj0uLi4mZG9iPS4uLiAgL3Byb3h5Ly4uLiIpCiAgICBhcHAucnVuKGhvc3Q9IjAuMC4wLjAiLCBwb3J0PTUwMDAsIGRlYnVnPUZhbHNlKQ==").decode("utf-8"))
+import requests
+from datetime import datetime
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+from bs4 import BeautifulSoup
+
+app = Flask(__name__)
+
+# =========================================================
+#  CONFIG
+# =========================================================
+
+BASE_URL = "https://lsg-land-owner-stage.land.gov.bd"
+API_URL = BASE_URL + "/check/user/nid/verification"
+SECRET_KEY = "lsg56xy14yu45dfgy124dfe12dr52fgd"
+ACCOUNTS_FILE = os.path.join(os.path.dirname(__file__), "accounts.json")
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+NID_BASE = "https://services.nidw.gov.bd/nid-pub"
+NID_UA = (
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36"
+)
+OCR_API_KEY = "K87822842088957"
+
+# =========================================================
+#  DISTRICT → DIVISION MAP
+# =========================================================
+
+DISTRICT_TO_DIVISION = {
+    "ঢাকা": "ঢাকা", "গাজীপুর": "ঢাকা", "নারায়ণগঞ্জ": "ঢাকা", "মানিকগঞ্জ": "ঢাকা",
+    "মুন্সীগঞ্জ": "ঢাকা", "নরসিংদী": "ঢাকা", "টাঙ্গাইল": "ঢাকা", "ফরিদপুর": "ঢাকা",
+    "গোপালগঞ্জ": "ঢাকা", "মাদারীপুর": "ঢাকা", "শরীয়তপুর": "ঢাকা", "রাজবাড়ী": "ঢাকা",
+    "চট্টগ্রাম": "চট্টগ্রাম", "কুমিল্লা": "চট্টগ্রাম", "ফেনী": "চট্টগ্রাম",
+    "ব্রাহ্মণবাড়িয়া": "চট্টগ্রাম", "রাঙ্গামাটি": "চট্টগ্রাম", "নোয়াখালী": "চট্টগ্রাম",
+    "চাঁদপুর": "চট্টগ্রাম", "লক্ষ্মীপুর": "চট্টগ্রাম", "কক্সবাজার": "চট্টগ্রাম",
+    "খাগড়াছড়ি": "চট্টগ্রাম", "বান্দরবান": "চট্টগ্রাম",
+    "রাজশাহী": "রাজশাহী", "নাটোর": "রাজশাহী", "নওগাঁ": "রাজশাহী",
+    "চাঁপাইনবাবগঞ্জ": "রাজশাহী", "পাবনা": "রাজশাহী", "সিরাজগঞ্জ": "রাজশাহী",
+    "বগুড়া": "রাজশাহী", "জয়পুরহাট": "রাজশাহী",
+    "খুলনা": "খুলনা", "বাগেরহাট": "খুলনা", "সাতক্ষীরা": "খুলনা", "যশোর": "খুলনা",
+    "চুয়াডাঙ্গা": "খুলনা", "কুষ্টিয়া": "খুলনা", "মেহেরপুর": "খুলনা",
+    "মাগুরা": "খুলনা", "ঝিনাইদহ": "খুলনা", "নড়াইল": "খুলনা",
+    "বরিশাল": "বরিশাল", "পটুয়াখালী": "বরিশাল", "ভোলা": "বরিশাল",
+    "পিরোজপুর": "বরিশাল", "বরগুনা": "বরিশাল", "ঝালকাঠি": "বরিশাল",
+    "সিলেট": "সিলেট", "মৌলভীবাজার": "সিলেট", "হবিগঞ্জ": "সিলেট", "সুনামগঞ্জ": "সিলেট",
+    "রংপুর": "রংপুর", "দিনাজপুর": "রংপুর", "গাইবান্ধা": "রংপুর", "কুড়িগ্রাম": "রংপুর",
+    "নীলফামারী": "রংপুর", "লালমনিরহাট": "রংপুর", "ঠাকুরগাঁও": "রংপুর", "পঞ্চগড়": "রংপুর",
+    "ময়মনসিংহ": "ময়মনসিংহ", "নেত্রকোণা": "ময়মনসিংহ", "জামালপুর": "ময়মনসিংহ", "শেরপুর": "ময়মনসিংহ",
+}
+
+# =========================================================
+#  AES ENCRYPTION (equivalent to PHP openssl_encrypt aes-256-cbc)
+# =========================================================
+
+def encrypt_data(plaintext: str, secret_key: str) -> dict:
+    """
+    PHP er encrypt_data equivalent.
+    Returns {'iv': base64, 'encryptedData': base64}
+    """
+    key_bytes = secret_key.encode("utf-8")[:32].ljust(32, b"\0")
+    iv = os.urandom(16)
+
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv)
+    padded = pad(plaintext.encode("utf-8"), AES.block_size)
+    encrypted = cipher.encrypt(padded)
+
+    return {
+        "iv": base64.b64encode(iv).decode("utf-8"),
+        "encryptedData": base64.b64encode(encrypted).decode("utf-8"),
+    }
+
+# =========================================================
+#  RELIGION / GENDER DETECTION (from Helper.php)
+# =========================================================
+
+MALE_ISLAMIC = [
+    "md","mohammad","muhammad","ahmed","ahmad","ali","hasan","hussain","hassan","hussein",
+    "abdullah","abdul","rahman","abdulrahman","abdulaziz","omar","umar","osman","usman",
+    "ibrahim","ishaq","yasir","yusuf","yamin","zakaria","sulaiman","dawood","musa","harun","yunus",
+    "ayub","idris","ilyas","ismail","yaqub","shuaib","saleh","hud","taha","jalal","kamal",
+    "karim","rahim","jabbar","hafiz","qari","imam","sheikh","maulana","khalid","khalil",
+    "rashid","salim","salman","talha","zubair","farooq","farhan","fahad","saad","hamza",
+    "imran","irfan","junaid","kashif","nadeem","nasir","owais","qasim","raheel","raza",
+    "rizwan","shahid","shakeel","shams","sharif","shoaib","sohail","sultan","tahir",
+    "wajid","zahid","zia","zulfiqar","hafeez","mateen","mustafa","murad","najeeb",
+    "noor","nur","parvez","qadeer","rafiq","rauf","rehman","sajjad","sarwar","subhan",
+    "usama","waleed","waseem","younus","zafar","zaheer","zain","zeshan",
+]
+
+FEMALE_ISLAMIC = [
+    "mst","fatima","ayesha","aisha","zahra","khadija","hafsa","sumaiya","asia","asiya",
+    "rabia","saira","zainab","maryam","mariam","kulsum","ruqayya","umm","bibi","begum",
+    "afreen","alina","amina","aneesa","areeba","asma","atiya","azra",
+    "bushra","dania","fariha","farzana","fauzia","haleema","halima","hana","hareem",
+    "hasina","humaira","iqra","javeria","kaniz","karima","laila","lubna","madiha",
+    "mahnoor","malaika","marwa","maya","maymuna","mehnaz","muneeba","nadia","nafisa",
+    "naila","najma","nazia","nida","nimra","parveen","rida","roshni","rubina",
+    "saba","sadia","safa","safia","saima","sajida","saleha","samina","sana","sania",
+    "sara","shabana","shagufta","shazia","sidra","sobia","sofia","tabinda","tahira",
+    "taiba","tasneem","tuba","umaima","uzma","warda","yasmeen","yusra","zahida",
+    "zara","zubaida","zulekha","zumra",
+]
+
+ISLAMIC_PREFIXES = ["md", "mohammad", "muhammad", "mst"]
+
+
+def detect_religion_gender(name: str) -> dict:
+    name_lower = (name or "").lower()
+
+    is_islamic = any(p in name_lower for p in MALE_ISLAMIC + FEMALE_ISLAMIC + ISLAMIC_PREFIXES)
+
+    gender = "Unknown"
+    for p in MALE_ISLAMIC:
+        if p in name_lower:
+            gender = "Male"
+            break
+    if gender == "Unknown":
+        for p in FEMALE_ISLAMIC:
+            if p in name_lower:
+                gender = "Female"
+                break
+
+    return {
+        "religion": "ইসলাম" if is_islamic else "N/A",
+        "religionEn": "Islam" if is_islamic else "N/A",
+        "gender": "N/A" if gender == "Unknown" else ("পুরুষ" if gender == "Male" else "নারী"),
+        "genderEn": "N/A" if gender == "Unknown" else gender,
+    }
+
+# =========================================================
+#  HTTP HELPERS
+# =========================================================
+
+def http_request(method, url, headers=None, data=None, cookies=None, timeout=30):
+    try:
+        if method.upper() == "GET":
+            r = requests.get(url, headers=headers, cookies=cookies,
+                             timeout=timeout, verify=False, allow_redirects=True)
+        else:
+            r = requests.post(url, headers=headers, data=data, cookies=cookies,
+                              timeout=timeout, verify=False, allow_redirects=False)
+        return r
+    except Exception as e:
+        return None
+
+# =========================================================
+#  NID LOOKUP CLASS
+# =========================================================
+
+class NIDLookup:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": NID_UA})
+        self.csrf_token = ""
+
+    def get_csrf_token(self):
+        try:
+            r = self.session.get(f"{NID_BASE}/card-status", timeout=30, verify=False)
+            m = re.search(r'name="_csrf"\s+content="([^"]+)"', r.text)
+            self.csrf_token = m.group(1) if m else ""
+            return self.csrf_token
+        except Exception as e:
+            print(f"CSRF error: {e}")
+            return ""
+
+    def download_captcha(self):
+        try:
+            url = f"{NID_BASE}/captcha/?t={int(time.time())}"
+            headers = {
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "Referer": f"{NID_BASE}/card-status",
+            }
+            r = self.session.get(url, headers=headers, timeout=30, verify=False)
+            if r.status_code != 200 or not r.content:
+                return None
+            return r.content
+        except Exception as e:
+            print(f"Captcha download error: {e}")
+            return None
+
+    def solve_captcha(self, image_bytes):
+        try:
+            b64 = base64.b64encode(image_bytes).decode("utf-8")
+            data = {
+                "apikey": OCR_API_KEY,
+                "language": "eng",
+                "base64Image": f"data:image/png;base64,{b64}",
+                "OCREngine": 3,
+                "scale": True,
+            }
+            r = requests.post("https://api.ocr.space/parse/image",
+                              data=data, timeout=30)
+            j = r.json()
+            text = ""
+            if "ParsedResults" in j and j["ParsedResults"]:
+                text = j["ParsedResults"][0].get("ParsedText", "")
+            return re.sub(r"[^a-zA-Z0-9]", "", text.strip())
+        except Exception as e:
+            print(f"OCR error: {e}")
+            return ""
+
+    def lookup_nid(self, nid, day, month, year):
+        if not self.csrf_token:
+            self.get_csrf_token()
+        if not self.csrf_token:
+            return {"success": False, "message": "CSRF token not found"}
+
+        img = self.download_captcha()
+        if not img:
+            return {"success": False, "message": "Captcha download failed"}
+
+        captcha_text = self.solve_captcha(img)
+        if len(captcha_text) < 3:
+            return {"success": False, "message": "ক্যাপচা সলভ ব্যর্থ!"}
+
+        try:
+            post_data = {
+                "nid": nid,
+                "day": day,
+                "month": month,
+                "year": year,
+                "captcha": captcha_text,
+            }
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-CSRF-TOKEN": self.csrf_token,
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/plain, */*",
+                "Referer": f"{NID_BASE}/card-status",
+            }
+            r = self.session.post(f"{NID_BASE}/card-status/validate",
+                                  data=post_data, headers=headers,
+                                  timeout=30, verify=False)
+            result = r.json()
+        except Exception as e:
+            return {"success": False, "message": f"Validation failed: {e}"}
+
+        if result.get("status") == "SUCCESS" and "success" in result and "template" in result["success"]:
+            return self.get_card_details(result["success"]["template"], nid, day, month, year)
+
+        return {"success": False, "message": result.get("error", "অজানা এরর!")}
+
+    def get_card_details(self, template_url, nid, day, month, year):
+        try:
+            url = f"{NID_BASE}{template_url}?t={int(time.time())}"
+            headers = {
+                "X-CSRF-TOKEN": self.csrf_token,
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "text/html, */*",
+                "Referer": f"{NID_BASE}/card-status",
+            }
+            r = self.session.get(url, headers=headers, timeout=30, verify=False)
+            return self.extract_data(r.text, nid, day, month, year)
+        except Exception as e:
+            return {"success": False, "message": f"Card fetch failed: {e}"}
+
+    def extract_data(self, html, nid, day, month, year):
+        soup = BeautifulSoup(html, "html.parser")
+        rows = soup.find_all("tr")
+
+        data = {
+            "status": "", "box_id": "", "comp_id": "",
+            "district": "", "upozila": "",
+            "voter_area": "", "contact_address": "",
+        }
+
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) >= 7:
+                data["status"] = cells[0].get_text(strip=True)
+                data["box_id"] = cells[1].get_text(strip=True)
+                data["comp_id"] = cells[2].get_text(strip=True)
+                data["district"] = cells[3].get_text(strip=True)
+                data["upozila"] = cells[4].get_text(strip=True)
+                data["voter_area"] = cells[5].get_text(strip=True)
+                data["contact_address"] = cells[6].get_text(strip=True)
+                break
+
+        for k in data:
+            data[k] = data[k].replace("N/A", "").replace("Complete", "").strip()
+
+        village = data["voter_area"]
+        if village:
+            m = re.search(r"গ্রাম/রাস্তা\s*:?\s*([^,]+)", village)
+            if m:
+                village = m.group(1).strip()
+            else:
+                village = re.sub(r"বাসা/হোল্ডিং\s*:?\s*[^,]+,?\s*", "", village)
+                village = re.sub(r"মৌজা/মহল্লা\s*:?\s*[^,]+,?\s*", "", village)
+                village = village.strip()
+
+        division = DISTRICT_TO_DIVISION.get(data["district"].strip(), "")
+
+        address = f"বাসা/হোল্ডিং: , গ্রাম/রাস্তা: {village}"
+        if data["upozila"]:
+            address += f", উপজেলা: {data['upozila']}"
+        if data["district"]:
+            address += f", জেলা: {data['district']}"
+        if division:
+            address += f", বিভাগ: {division}"
+
+        dob_formatted = f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+        day_of_week = self.get_day_of_week(year, month, day)
+        age = self.calculate_age(year, month, day)
+
+        return {
+            "success": True,
+            "message": "NID information retrieved successfully",
+            "data": {
+                "nid": nid,
+                "dob": dob_formatted,
+                "day_of_week": day_of_week,
+                "age": age,
+                "village": village,
+                "upozila": data["upozila"],
+                "district": data["district"],
+                "division": division,
+                "address": address,
+                "voter_area": data["voter_area"],
+            },
+        }
+
+    def get_day_of_week(self, year, month, day):
+        try:
+            dt = datetime(int(year), int(month), int(day))
+            bangla_days = ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"]
+            return bangla_days[dt.weekday() + 1 if dt.weekday() < 6 else 0]
+        except Exception:
+            return ""
+
+    def calculate_age(self, year, month, day):
+        try:
+            birth = datetime(int(year), int(month), int(day))
+            today = datetime.now()
+            years = today.year - birth.year
+            months = today.month - birth.month
+            days = today.day - birth.day
+            if days < 0:
+                months -= 1
+                days += 30
+            if months < 0:
+                years -= 1
+                months += 12
+            bangla = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"]
+            y = "".join(bangla[int(c)] for c in str(years))
+            m = "".join(bangla[int(c)] for c in str(months))
+            d = "".join(bangla[int(c)] for c in str(days))
+            return f"{y} বছর {m} মাস {d} দিন"
+        except Exception:
+            return ""
+
+# =========================================================
+#  ACCOUNTS
+# =========================================================
+
+def load_accounts():
+    if not os.path.exists(ACCOUNTS_FILE):
+        return []
+    try:
+        with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_accounts(accounts):
+    try:
+        with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(accounts, f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
+
+
+def update_account_attempt(username):
+    accounts = load_accounts()
+    for acc in accounts:
+        if acc.get("username") == username:
+            acc["attempt_increased"] = (acc.get("attempt_increased") or 0) + 1
+            acc["attempt_increased_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            break
+    save_accounts(accounts)
+
+
+def reset_daily_attempts():
+    accounts = load_accounts()
+    today = datetime.now().strftime("%Y-%m-%d")
+    modified = False
+    for acc in accounts:
+        if "attempt_increased_at" in acc:
+            try:
+                attempt_date = acc["attempt_increased_at"][:10]
+            except Exception:
+                attempt_date = ""
+            if attempt_date != today:
+                acc["attempt_increased"] = 0
+                acc["attempt_increased_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                modified = True
+    if modified:
+        save_accounts(accounts)
+
+# =========================================================
+#  LOGIN + API CALL
+# =========================================================
+
+def login_with_account(username, password):
+    login_url = f"{BASE_URL}/login"
+    headers = {"User-Agent": USER_AGENT}
+
+    try:
+        r = requests.get(login_url, headers=headers, timeout=15, verify=False)
+    except Exception:
+        return None
+
+    m = re.search(r'<meta name="csrf-token" content="([^"]+)"', r.text, re.IGNORECASE)
+    csrf_token = m.group(1) if m else ""
+    if not csrf_token:
+        return None
+
+    cookies = r.cookies.get_dict()
+
+    post_data = {
+        "_token": csrf_token,
+        "userOptionType": "Citizen",
+        "identity": "email",
+        "username": username,
+        "password": password,
+        "qr-container-token": "",
+    }
+
+    try:
+        r2 = requests.post(login_url, data=post_data, headers=headers,
+                           cookies=cookies, timeout=15, verify=False,
+                           allow_redirects=False)
+    except Exception:
+        return None
+
+    if r2.status_code != 302:
+        return None
+
+    final_cookies = dict(cookies)
+    final_cookies.update(r2.cookies.get_dict())
+    if "lsg_session" not in final_cookies:
+        return None
+
+    try:
+        r3 = requests.get(f"{BASE_URL}/landing",
+                          headers=headers,
+                          cookies={"lsg_session": final_cookies["lsg_session"]},
+                          timeout=15, verify=False)
+    except Exception:
+        return None
+
+    m2 = re.search(r'<meta name="csrf-token" content="([^"]+)"', r3.text, re.IGNORECASE)
+    landing_csrf = m2.group(1) if m2 else ""
+    if not landing_csrf:
+        return None
+
+    return {
+        "csrf_token": landing_csrf,
+        "lsg_session": final_cookies["lsg_session"],
+    }
+
+
+def call_verification_api(nid, dob, session_data):
+    plaintext = json.dumps({"dob": dob, "nid": nid})
+    encrypted = encrypt_data(plaintext, SECRET_KEY)
+    post_data = {"tokenized_en_data": json.dumps(encrypted)}
+
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Cookie": f"lsg_session={session_data['lsg_session']}",
+        "x-csrf-token": session_data["csrf_token"],
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+
+    try:
+        r = requests.post(API_URL, data=post_data, headers=headers,
+                          timeout=20, verify=False)
+        return r.json()
+    except Exception as e:
+        print(f"API call error: {e}")
+        return False
+
+# =========================================================
+#  ROUTES
+# =========================================================
+
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "ok",
+        "endpoints": {
+            "/nid": "?num=XXXX&dob=YYYY-MM-DD"
+        }
+    })
+
+
+@app.route("/nid")
+def nid_endpoint():
+    nid = request.args.get("num") or request.args.get("nid") or ""
+    dob = request.args.get("dob") or ""
+
+    if not nid or not dob:
+        return jsonify({
+            "code": 400,
+            "success": False,
+            "message": "num and dob required",
+            "usage": "?num=7314475786&dob=1991-11-07"
+        }), 400
+
+    # Parse DOB
+    parts = dob.split("-")
+    if len(parts) != 3:
+        return jsonify({
+            "code": 400,
+            "success": False,
+            "message": "Invalid date format. Use YYYY-MM-DD"
+        }), 400
+
+    year, month, day = parts
+    try:
+        datetime(int(year), int(month), int(day))
+    except ValueError:
+        return jsonify({
+            "code": 400,
+            "success": False,
+            "message": "Invalid date"
+        }), 400
+
+    reset_daily_attempts()
+
+    # NID lookup
+    try:
+        lookup = NIDLookup()
+        address_result = lookup.lookup_nid(nid, day, month, year)
+    except Exception as e:
+        address_result = {"success": False, "message": str(e), "data": {}}
+
+    # Accounts
+    accounts = load_accounts()
+    active_accounts = [a for a in accounts if (a.get("attempt_increased") or 0) < 10]
+
+    if not active_accounts:
+        return jsonify({
+            "code": 429,
+            "success": False,
+            "message": "All accounts reached daily limit"
+        }), 429
+
+    response_data = None
+    used_account = None
+    last_error = None
+
+    for account in active_accounts:
+        username = account.get("username", "")
+        password = account.get("password", "")
+
+        session_data = login_with_account(username, password)
+        if not session_data:
+            last_error = f"Login failed for: {username}"
+            continue
+
+        api_response = call_verification_api(nid, dob, session_data)
+        if api_response is False:
+            last_error = f"API call failed for: {username}"
+            continue
+
+        # Daily limit reached detection
+        if (isinstance(api_response, dict)
+                and str(api_response.get("success")) == "false"
+                and "data" in api_response
+                and "সর্বোচ্চ সংখ্যকবার" in str(api_response.get("data", ""))):
+            all_acc = load_accounts()
+            for a in all_acc:
+                if a.get("username") == username:
+                    a["attempt_increased"] = 10
+                    break
+            save_accounts(all_acc)
+            last_error = f"Daily limit reached for: {username}"
+            continue
+
+        response_data = api_response
+        used_account = username
+        break
+
+    # Final response
+    if response_data and str(response_data.get("success")) == "true":
+        if used_account:
+            update_account_attempt(used_account)
+
+        citizen = response_data.get("citizen_info", {})
+        name_en = citizen.get("name_en", "")
+        religion_gender = detect_religion_gender(name_en)
+
+        raw_voter_area = (address_result.get("data") or {}).get("voter_area", "")
+        village_name = raw_voter_area
+        if raw_voter_area:
+            m = re.search(r"গ্রাম/রাস্তা\s*:?\s*([^,]+)", raw_voter_area)
+            if m:
+                village_name = m.group(1).strip()
+            else:
+                village_name = raw_voter_area.split(",")[0].strip()
+
+        final_data = {
+            "name": citizen.get("name", ""),
+            "nameEn": name_en,
+            "nationalId": nid,
+            "dateOfBirth": dob,
+            "pin": f"{year}{nid}",
+            "old_nid": nid,
+            "voter_area": village_name,
+            "birth_place": (address_result.get("data") or {}).get("district", ""),
+            "fatherName": citizen.get("father_name", ""),
+            "motherName": citizen.get("mother_name", ""),
+            "gender": religion_gender["gender"],
+            "genderEn": religion_gender["genderEn"],
+            "religion": religion_gender["religion"],
+            "religionEn": religion_gender["religionEn"],
+        }
+
+        if address_result.get("success"):
+            d = address_result.get("data", {})
+            final_data["village"] = d.get("village", "")
+            final_data["upozila"] = d.get("upozila", "")
+            final_data["district"] = d.get("district", "")
+            final_data["division"] = d.get("division", "")
+            final_data["address"] = d.get("address", "")
+            final_data["day_of_week"] = d.get("day_of_week", "")
+            final_data["age"] = d.get("age", "")
+
+        return jsonify({
+            "code": 200,
+            "success": True,
+            "message": "NID fetched successfully!",
+            "data": final_data,
+        })
+
+    return jsonify({
+        "code": 500,
+        "success": False,
+        "message": (response_data.get("data") if isinstance(response_data, dict) else None)
+                   or last_error
+                   or "Verification failed",
+        "data": None,
+    }), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
